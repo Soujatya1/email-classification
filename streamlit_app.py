@@ -1,56 +1,109 @@
 import streamlit as st
-from openai import OpenAI
+import os
+from langchain.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_groq import ChatGroq
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+# Page configuration
+st.set_page_config(
+    page_title="Email Spam Classifier",
+    page_icon="📧",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# Title and description
+st.title("📧 Email Spam Classifier")
+st.markdown("### Analyze and classify emails as spam or non-spam using AI")
+st.markdown("---")
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# Update email content if sample was selected
+if 'email_content' in st.session_state:
+    email_content = st.session_state.email_content
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Classification section
+st.markdown("---")
+st.header("🔍 Email Classification")
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Initialize session state for results
+if 'classification_result' not in st.session_state:
+    st.session_state.classification_result = None
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# Classification button
+col1, col2, col3 = st.columns([1, 1, 1])
+with col2:
+    classify_button = st.button(
+        "🚀 Classify Email",
+        use_container_width=True,
+        type="primary"
+    )
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# Classification logic
+if classify_button:
+    if not groq_api_key:
+        st.error("❌ Please enter your GROQ API key in the sidebar")
+    elif not email_content.strip():
+        st.error("❌ Please enter email content to classify")
+    else:
+        try:
+            with st.spinner("🔄 Analyzing email..."):
+                # Set up the environment
+                os.environ["GROQ_API_KEY"] = groq_api_key
+                
+                # Initialize the model
+                llm = ChatGroq(
+                    groq_api_key=groq_api_key,
+                    model_name='meta-llama/llama-4-scout-17b-16e-instruct'
+                )
+                
+                # Create the prompt template
+                template = """
+As an expert spam email classifier you are supposed to analyze and categorize any email as either spam or non-spam. Post evaluation, you need to generate a comprehensive and concise report
+explaining the details of the classification outcome with proper justification. Also adjudge the sentiment of the email. Also, please pick the name of the sender of the mail and also any other important customer details, if present. Classify the intent of the email as per the issue and show it in one line.
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+email: {email}
+"""
+                
+                prompt = PromptTemplate.from_template(template=template)
+                parser = StrOutputParser()
+                chain = prompt | llm | parser
+                
+                # Get classification result
+                result = chain.invoke({"email": email_content})
+                st.session_state.classification_result = result
+                
+        except Exception as e:
+            st.error(f"❌ Error during classification: {str(e)}")
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+# Display results
+if st.session_state.classification_result:
+    st.markdown("---")
+    st.header("📊 Classification Results")
+    
+    # Display the result in a nice format
+    st.markdown("### 📋 Detailed Analysis")
+    st.text_area(
+        "Classification Report:",
+        value=st.session_state.classification_result,
+        height=300,
+        disabled=True
+    )
+    
+    # Additional features
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 💾 Export Results")
+        if st.button("📥 Download Report", use_container_width=True):
+            st.download_button(
+                label="Download Classification Report",
+                data=st.session_state.classification_result,
+                file_name="email_classification_report.txt",
+                mime="text/plain"
+            )
+    
+    with col2:
+        st.markdown("### 🔄 Actions")
+        if st.button("🗑️ Clear Results", use_container_width=True):
+            st.session_state.classification_result = None
+            st.rerun()
