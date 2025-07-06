@@ -116,6 +116,43 @@ with col2:
         type="primary"
     )
 
+# Classification logic
+if classify_button:
+    if not groq_api_key:
+        st.error("❌ Please enter your GROQ API key in the sidebar")
+    elif not email_content.strip():
+        st.error("❌ Please enter email content to classify")
+    else:
+        try:
+            with st.spinner("🔄 Analyzing email..."):
+                # Set up the environment
+                os.environ["GROQ_API_KEY"] = groq_api_key
+                
+                # Initialize the model
+                llm = ChatGroq(
+                    groq_api_key=groq_api_key,
+                    model_name='meta-llama/llama-4-scout-17b-16e-instruct'
+                )
+                
+                # Create the prompt template
+                template = """
+As an expert spam email classifier you are supposed to analyze and categorize any email as either spam or non-spam. Post evaluation, you need to generate a comprehensive and concise report
+explaining the details of the classification outcome with proper justification. Also adjudge the sentiment of the email. Also, please pick the name of the sender of the mail and also any other important customer details, if present. Classify the intent of the email as per the issue and show it in one line.
+
+email: {email}
+"""
+                
+                prompt = PromptTemplate.from_template(template=template)
+                parser = StrOutputParser()
+                chain = prompt | llm | parser
+                
+                # Get classification result
+                result = chain.invoke({"email": email_content})
+                st.session_state.classification_result = result
+                
+        except Exception as e:
+            st.error(f"❌ Error during classification: {str(e)}")
+
 # Display results
 if st.session_state.classification_result:
     st.markdown("---")
@@ -148,3 +185,18 @@ if st.session_state.classification_result:
         if st.button("🗑️ Clear Results", use_container_width=True):
             st.session_state.classification_result = None
             st.rerun()
+
+# Footer
+st.markdown("---")
+st.markdown("### 🛠️ About")
+st.markdown("""
+This email classifier uses advanced AI to analyze email content and determine whether it's spam or legitimate. 
+The model considers various factors including:
+- **Content Analysis**: Examines the email text for spam indicators
+- **Sender Information**: Analyzes sender details and authenticity
+- **Sentiment Analysis**: Determines the emotional tone of the email
+- **Intent Classification**: Identifies the purpose of the email
+""")
+
+st.markdown("---")
+st.markdown("*Built with Streamlit and LangChain | Powered by GROQ*")
