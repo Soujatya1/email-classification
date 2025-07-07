@@ -61,7 +61,7 @@ if classify_button:
                 )
                 
                 template = """
-As an expert spam email classifier you are supposed to analyze and categorize any email as either spam or non-spam. Post evaluation, you need to generate a comprehensive and concise report
+As an expert email classifier you are supposed to analyze and categorize any email as either Genuine or Fraud. Post evaluation, you need to generate a comprehensive and concise report
 explaining the details of the classification outcome with proper justification. Also adjudge the sentiment of the email. Also, please pick the name of the sender of the mail and also any other important customer details, if present. Classify the intent of the email as per the issue and show it in one line.
 
 email: {email}
