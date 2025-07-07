@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 st.title("📧 Email Spam Classifier")
-st.markdown("### Analyze and classify emails as spam or non-spam using AI")
+st.markdown("### Analyze and classify emails using AI")
 st.markdown("---")
 
 with st.sidebar:
